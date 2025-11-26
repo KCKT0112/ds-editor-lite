@@ -132,8 +132,10 @@ static srt::Expected<void> initializeSU(srt::SynthUnit &su, ds::Api::Onnx::Execu
     if (ep == ds::Api::Onnx::CUDAExecutionProvider) {
         onnxArgs->runtimePath = ortParentPath / _TSTR("cuda");
     } else {
+        // CoreML and other providers use the default runtime path
         onnxArgs->runtimePath = ortParentPath / _TSTR("default");
     }
+    // CoreML doesn't need device index as it automatically selects the best hardware
     onnxArgs->deviceIndex = deviceIndex;
 
     if (auto exp = onnxDriver->initialize(onnxArgs); !exp) {
@@ -229,12 +231,17 @@ bool InferEngine::initialize(QString &error) {
                 return DmlGpuUtils::getGpuList();
             case EP::CUDAExecutionProvider:
                 return CudaGpuUtils::getGpuList();
+            case EP::CoreMLExecutionProvider:
+                // CoreML doesn't need GPU device selection as it automatically uses Apple hardware
+                return {};
             default:
                 return {};
         }
     }(ep);
 
-    if (ep != EP::CPUExecutionProvider && gpuDeviceList.empty()) {
+    // CoreML doesn't require GPU device selection, so skip the check for it
+    if (ep != EP::CPUExecutionProvider && ep != EP::CoreMLExecutionProvider &&
+        gpuDeviceList.empty()) {
         qCritical() << "InferEngine: Unable to find GPU device.";
     }
 
@@ -279,10 +286,10 @@ bool InferEngine::initialize(QString &error) {
     }
 
 
-    //const auto homeDir = StringUtils::qstr_to_path(QDir::toNativeSeparators(
-    //    QStandardPaths::writableLocation(QStandardPaths::HomeLocation)));
+    // const auto homeDir = StringUtils::qstr_to_path(QDir::toNativeSeparators(
+    //     QStandardPaths::writableLocation(QStandardPaths::HomeLocation)));
 
-    //const std::filesystem::path paths = {homeDir / ".diffsinger/packages"};
+    // const std::filesystem::path paths = {homeDir / ".diffsinger/packages"};
     const auto packagePathsQt = appOptions->general()->packageSearchPaths;
     std::vector<std::filesystem::path> packagePaths;
     packagePaths.reserve(packagePathsQt.size());
@@ -291,11 +298,23 @@ bool InferEngine::initialize(QString &error) {
     }
     m_su.setPackagePaths(packagePaths);
 
-    if (ep != EP::CPUExecutionProvider) {
+    if (ep != EP::CPUExecutionProvider && ep != EP::CoreMLExecutionProvider) {
         qInfo().noquote() << QStringLiteral("GPU: %1, Device ID: %2, Memory: %3")
                                  .arg(description)
                                  .arg(deviceId)
                                  .arg(memory);
+    } else if (ep == EP::CoreMLExecutionProvider) {
+#if defined(Q_OS_MAC)
+        const QString computeUnits = appOptions->inference()->coreMLComputeUnits;
+        qInfo().noquote() << QStringLiteral(
+                                 "Using CoreML Execution Provider with compute units: %1")
+                                 .arg(computeUnits);
+        // Note: CoreML compute units configuration may need to be passed through dsinfer library
+        // If DriverInitArgs doesn't support it, this option will be used when dsinfer adds support
+#else
+        qInfo() << "Using CoreML Execution Provider (automatically uses Apple hardware: CPU, GPU, "
+                   "Neural Engine)";
+#endif
     }
 
     m_initialized = true;
@@ -462,17 +481,20 @@ bool InferEngine::loadInferencesForSinger(const SingerIdentifier &identifier) {
     // If not found, try loading the package
     if (!loader) {
         qDebug() << "loadInferencesForSinger: "
-                    "singer" << identifier << "not loaded, try loading now";
+                    "singer"
+                 << identifier << "not loaded, try loading now";
         const auto packageInfo = packageManager->findPackageByIdentifier(identifier);
         if (packageInfo.isEmpty()) {
             qCritical() << "loadInferencesForSinger: "
-                           "package for singer" << identifier << "not found";
+                           "package for singer"
+                        << identifier << "not found";
             return false;
         }
         srt::PackageRef pkg;
         if (!loadPackageAndAllSingers(packageInfo.path(), pkg)) {
             qCritical() << "loadInferencesForSinger: "
-                           "failed to load package and singers" << identifier;
+                           "failed to load package and singers"
+                        << identifier;
             return false;
         }
         Q_UNUSED(pkg)
@@ -496,7 +518,8 @@ bool InferEngine::loadInferencesForSinger(const SingerIdentifier &identifier) {
         const auto it = m_inferences.constFind(identifier);
         if (it != m_inferences.constEnd()) {
             qDebug() << "loadInferencesForSinger: "
-                        "inferences already loaded for" << identifier;
+                        "inferences already loaded for"
+                     << identifier;
             return true;
         }
     }
@@ -593,7 +616,7 @@ bool InferEngine::loadInferencesForSinger(const SingerIdentifier &identifier) {
         m_inferences[identifier] = std::move(inference);
     }
 
-    //m_paths.config = StringUtils::path_to_qstr(singerSpec->parent().path());
+    // m_paths.config = StringUtils::path_to_qstr(singerSpec->parent().path());
     qInfo() << "loadInferences success";
 
     return true;

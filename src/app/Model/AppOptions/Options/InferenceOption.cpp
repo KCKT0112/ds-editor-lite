@@ -36,6 +36,10 @@ void InferenceOption::load(const QJsonObject &object) {
         autoStartInfer = object[autoStartInferKey].toBool();
     if (object.contains(pitch_smooth_kernel_sizeKey))
         pitch_smooth_kernel_size = object[pitch_smooth_kernel_sizeKey].toInt();
+#if defined(Q_OS_MAC)
+    if (object.contains(coreMLComputeUnitsKey))
+        coreMLComputeUnits = object[coreMLComputeUnitsKey].toString();
+#endif
 }
 
 void InferenceOption::save(QJsonObject &object) {
@@ -48,5 +52,8 @@ void InferenceOption::save(QJsonObject &object) {
               serialize_autoStartInfer(),
               serialize_cacheDirectory(),
               serialize_pitch_smooth_kernel_size()
+#if defined(Q_OS_MAC)
+              , serialize_coreMLComputeUnits()
+#endif
     };
 }

@@ -25,6 +25,9 @@ protected:
 private:
     ComboBox *m_cbExecutionProvider;
     ComboBox *m_cbDeviceList;
+#if defined(Q_OS_MAC)
+    ComboBox *m_cbCoreMLComputeUnits;
+#endif
     ComboBox *m_cbSamplingSteps;
     DoubleSeekBarSpinboxGroup *m_dsDepthSlider;
     SwitchButton *m_swRunVocoderOnCpu;

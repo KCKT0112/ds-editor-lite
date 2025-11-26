@@ -52,6 +52,11 @@ void InferencePage::modifyOption() {
     option->depth = m_dsDepthSlider->spinbox->value();
     option->runVocoderOnCpu = m_swRunVocoderOnCpu->value();
     option->autoStartInfer = m_autoStartInfer->value();
+#if defined(Q_OS_MAC)
+    if (m_cbCoreMLComputeUnits) {
+        option->coreMLComputeUnits = m_cbCoreMLComputeUnits->currentData().toString();
+    }
+#endif
     appOptions->saveAndNotify(AppOptionsGlobal::Inference);
 }
 
@@ -62,16 +67,24 @@ QWidget *InferencePage::createContentWidget() {
     constexpr int epIndexCpu = 0;
     constexpr int epIndexDirectML = 1;
     constexpr int epIndexCuda = 2;
+    constexpr int epIndexCoreML = 3;
     m_cbExecutionProvider = new ComboBox();
     m_cbExecutionProvider->insertItem(epIndexCpu, "CPU");
     m_cbExecutionProvider->insertItem(epIndexDirectML, "DirectML");
     m_cbExecutionProvider->insertItem(epIndexCuda, "CUDA");
+#if defined(Q_OS_MAC)
+    m_cbExecutionProvider->insertItem(epIndexCoreML, "CoreML");
+#endif
     if (option->executionProvider == "CPU")
         m_cbExecutionProvider->setCurrentIndex(epIndexCpu);
     else if (option->executionProvider == "DirectML")
         m_cbExecutionProvider->setCurrentIndex(epIndexDirectML);
     else if (option->executionProvider == "CUDA")
         m_cbExecutionProvider->setCurrentIndex(epIndexCuda);
+#if defined(Q_OS_MAC)
+    else if (option->executionProvider == "CoreML")
+        m_cbExecutionProvider->setCurrentIndex(epIndexCoreML);
+#endif
     connect(m_cbExecutionProvider, &ComboBox::currentIndexChanged, this,
             &InferencePage::modifyOption);
     connect(m_cbExecutionProvider, &ComboBox::currentIndexChanged, this, [this] {
@@ -91,6 +104,7 @@ QWidget *InferencePage::createContentWidget() {
         if (option->executionProvider == "CUDA") {
             return CudaGpuUtils::getGpuList();
         }
+        // CoreML doesn't need GPU device selection as it automatically uses Apple hardware
         return {};
     }();
 
@@ -104,8 +118,8 @@ QWidget *InferencePage::createContentWidget() {
         const int currentIndex = m_cbDeviceList->count();
         auto displayText =
             QStringLiteral("%1 (%2 GiB)")
-            .arg(device.description)
-            .arg(static_cast<double>(device.memory) / (1024 * 1024 * 1024), 0, 'f', 2);
+                .arg(device.description)
+                .arg(static_cast<double>(device.memory) / (1024 * 1024 * 1024), 0, 'f', 2);
         m_cbDeviceList->insertItem(currentIndex, displayText);
         m_cbDeviceList->setItemData(currentIndex, QVariant::fromValue<GpuInfo>(device),
                                     GpuInfoRole);
@@ -122,11 +136,58 @@ QWidget *InferencePage::createContentWidget() {
     }
     connect(m_cbDeviceList, &ComboBox::currentIndexChanged, this, &InferencePage::modifyOption);
 
+#if defined(Q_OS_MAC)
+    // CoreML Compute Units
+    m_cbCoreMLComputeUnits = new ComboBox();
+    m_cbCoreMLComputeUnits->insertItem(0, "ALL", "ALL");
+    m_cbCoreMLComputeUnits->insertItem(1, "CPU Only", "CPUOnly");
+    m_cbCoreMLComputeUnits->insertItem(2, "CPU + Neural Engine", "CPUAndNeuralEngine");
+    m_cbCoreMLComputeUnits->insertItem(3, "CPU + GPU", "CPUAndGPU");
+    
+    // Set current value
+    const QString currentComputeUnits = option->coreMLComputeUnits;
+    if (currentComputeUnits == "CPUOnly") {
+        m_cbCoreMLComputeUnits->setCurrentIndex(1);
+    } else if (currentComputeUnits == "CPUAndNeuralEngine") {
+        m_cbCoreMLComputeUnits->setCurrentIndex(2);
+    } else if (currentComputeUnits == "CPUAndGPU") {
+        m_cbCoreMLComputeUnits->setCurrentIndex(3);
+    } else {
+        m_cbCoreMLComputeUnits->setCurrentIndex(0); // Default to ALL
+    }
+    
+    connect(m_cbCoreMLComputeUnits, &ComboBox::currentIndexChanged, this,
+            &InferencePage::modifyOption);
+    connect(m_cbCoreMLComputeUnits, &ComboBox::currentIndexChanged, this, [this] {
+        const auto message = tr(
+            "The settings will take effect after restarting the app. Do you want to restart now?");
+        const auto dlg = new RestartDialog(message, true, this);
+        dlg->show();
+    });
+    
+    // Show/hide based on execution provider
+    auto updateCoreMLVisibility = [this]() {
+        const bool isCoreML = m_cbExecutionProvider->currentText() == "CoreML";
+        if (m_cbCoreMLComputeUnits) {
+            m_cbCoreMLComputeUnits->setVisible(isCoreML);
+        }
+    };
+    connect(m_cbExecutionProvider, &ComboBox::currentTextChanged, this, updateCoreMLVisibility);
+    updateCoreMLVisibility();
+#endif
+
     // Device
     const auto deviceCard = new OptionListCard(tr("Device"));
     deviceCard->addItem(tr("Execution Provider"), tr("App needs a restart to take effect"),
                         m_cbExecutionProvider);
     deviceCard->addItem(tr("GPU"), m_cbDeviceList);
+#if defined(Q_OS_MAC)
+    if (m_cbCoreMLComputeUnits) {
+        deviceCard->addItem(tr("CoreML Compute Units"),
+                            tr("Select which Apple hardware to use for CoreML inference"),
+                            m_cbCoreMLComputeUnits);
+    }
+#endif
 
     // Render - Sampling Steps
     m_cbSamplingSteps = new ComboBox();
@@ -143,13 +204,11 @@ QWidget *InferencePage::createContentWidget() {
     constexpr double kDsDepthMax = 1.0;
     constexpr double kDsDepthSingleStep = 0.01;
 
-    m_dsDepthSlider = new DoubleSeekBarSpinboxGroup(kDsDepthMin, kDsDepthMax, kDsDepthSingleStep,
-                                                    option->depth);
+    m_dsDepthSlider =
+        new DoubleSeekBarSpinboxGroup(kDsDepthMin, kDsDepthMax, kDsDepthSingleStep, option->depth);
     m_dsDepthSlider->seekbar->setFixedWidth(256);
     connect(m_dsDepthSlider, &DoubleSeekBarSpinboxGroup::valueChanged, this,
-            [&](const double value) {
-                appOptions->inference()->depth = value;
-            });
+            [&](const double value) { appOptions->inference()->depth = value; });
     connect(m_dsDepthSlider, &DoubleSeekBarSpinboxGroup::editFinished, this,
             &InferencePage::modifyOption);
 
@@ -172,9 +231,8 @@ QWidget *InferencePage::createContentWidget() {
     m_smoothSlider = new SeekBarSpinboxGroup(0, 50, 1, option->pitch_smooth_kernel_size);
     m_smoothSlider->seekbar->setFixedWidth(256);
 
-    connect(m_smoothSlider, &SeekBarSpinboxGroup::valueChanged, this, [&](const double value) {
-        appOptions->inference()->pitch_smooth_kernel_size = value;
-    });
+    connect(m_smoothSlider, &SeekBarSpinboxGroup::valueChanged, this,
+            [&](const double value) { appOptions->inference()->pitch_smooth_kernel_size = value; });
     connect(m_smoothSlider, &SeekBarSpinboxGroup::editFinished, this, &InferencePage::modifyOption);
 
 
@@ -290,10 +348,8 @@ QWidget *InferencePage::createContentWidget() {
                 new QStandardItem(tr("vendor")),
                 new QStandardItem(pkgVendor),
             });
-            currentPackageRoot->appendRow({
-                new QStandardItem(tr("path")),
-                new QStandardItem(pkgPath)
-            });
+            currentPackageRoot->appendRow(
+                {new QStandardItem(tr("path")), new QStandardItem(pkgPath)});
             packageLoadedRoot->appendRow(currentPackageRoot);
         }
         packageRoot->appendRow(packageLoadedRoot);

@@ -29,6 +29,9 @@ public:
                          "/Cache")
 
     LITE_OPTION_ITEM(int, pitch_smooth_kernel_size, 0)
+#if defined(Q_OS_MAC)
+    LITE_OPTION_ITEM(QString, coreMLComputeUnits, "ALL")
+#endif
 };
 
 
