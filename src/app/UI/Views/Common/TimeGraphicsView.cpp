@@ -59,6 +59,10 @@ TimeGraphicsView::TimeGraphicsView(TimeGraphicsScene *scene, bool showLastPlayba
     connect(verticalScrollBar(), &QScrollBar::valueChanged, this,
             &TimeGraphicsView::notifyVisibleRectChanged);
 
+    // 连接动画完成信号，重置翻页标志
+    connect(&m_hBarAnimation, &QPropertyAnimation::finished, this,
+            [this]() { m_isPageTurning = false; });
+
     initializeAnimation();
     updateAnimationDuration();
 
@@ -697,10 +701,38 @@ void TimeGraphicsView::setPlaybackPosition(double tick) {
     if (!m_autoTurnPage || appStatus->currentEditObject != AppStatus::EditObjectType::None)
         return;
 
+    // 节流：如果正在翻页或距离上次翻页太近，跳过
+    if (m_isPageTurning) {
+        // 如果动画还在运行，检查是否需要更新目标位置
+        if (m_hBarAnimation.state() == QAbstractAnimation::Running) {
+            // 如果播放位置已经超出很多，直接跳到新位置
+            if (m_playbackPosition > endTick() + PAGE_TURN_THROTTLE_TICKS) {
+                m_hBarAnimation.stop();
+                m_isPageTurning = false;
+                pageAdd();
+            } else if (m_playbackPosition < startTick() - PAGE_TURN_THROTTLE_TICKS) {
+                m_hBarAnimation.stop();
+                m_isPageTurning = false;
+                setViewportStartTick(m_playbackPosition);
+            }
+        }
+        return;
+    }
+
+    // 节流：距离上次翻页至少间隔一定时间
+    if (qAbs(tick - m_lastPageTurnTick) < PAGE_TURN_THROTTLE_TICKS) {
+        return;
+    }
+
     if (m_playbackPosition > endTick()) {
+        m_lastPageTurnTick = tick;
+        m_isPageTurning = true;
         pageAdd();
-    } else if (m_playbackPosition < startTick())
+    } else if (m_playbackPosition < startTick()) {
+        m_lastPageTurnTick = tick;
+        m_isPageTurning = true;
         setViewportStartTick(m_playbackPosition);
+    }
 }
 
 void TimeGraphicsView::setLastPlaybackPosition(double tick) {
@@ -711,8 +743,14 @@ void TimeGraphicsView::setLastPlaybackPosition(double tick) {
 
 void TimeGraphicsView::setViewportStartTick(double tick) {
     auto sceneX = qRound(tickToSceneX(tick - m_offset));
-    // horizontalScrollBar()->setValue(sceneX);
-    horizontalBarAnimateTo(sceneX);
+    // 如果正在播放且动画正在运行，直接设置位置以提高性能
+    if (m_isPageTurning && m_hBarAnimation.state() == QAbstractAnimation::Running) {
+        m_hBarAnimation.stop();
+        setHorizontalBarValue(sceneX);
+        m_isPageTurning = false;
+    } else {
+        horizontalBarAnimateTo(sceneX);
+    }
 }
 
 void TimeGraphicsView::setViewportCenterAtTick(double tick) {
@@ -726,7 +764,14 @@ void TimeGraphicsView::pageAdd() {
     // horizontalScrollBar()->triggerAction(QAbstractSlider::SliderPageStepAdd);
     auto start = horizontalScrollBar()->value();
     auto end = start + horizontalScrollBar()->pageStep();
-    horizontalBarAnimateTo(end);
+    // 如果正在播放且动画正在运行，直接设置位置以提高性能
+    if (m_isPageTurning && m_hBarAnimation.state() == QAbstractAnimation::Running) {
+        m_hBarAnimation.stop();
+        setHorizontalBarValue(end);
+        m_isPageTurning = false;
+    } else {
+        horizontalBarAnimateTo(end);
+    }
 }
 
 double TimeGraphicsView::sceneXToTick(double pos) const {

@@ -136,10 +136,13 @@ void PianoRollGraphicsView::contextMenuEvent(QContextMenuEvent *event) {
 
 void PianoRollGraphicsView::mousePressEvent(QMouseEvent *event) {
     Q_D(PianoRollGraphicsView);
+    // 如果已经有按下状态，先清理之前的状态（触摸板操作时可能出现这种情况）
     if (d->m_mouseDown) {
-        qWarning() << "Ignored mousePressEvent" << event
-                   << "because there is already one mouse button pressed";
-        return;
+        // 清理之前未完成的操作
+        discardAction();
+        // 重置状态
+        d->m_mouseDown = false;
+        d->m_mouseDownButton = Qt::NoButton;
     }
     d->m_mouseDown = true;
     d->m_mouseDownButton = event->button();
@@ -227,7 +230,9 @@ void PianoRollGraphicsView::mouseMoveEvent(QMouseEvent *event) {
 
     // TODO: 优化移动和调整音符
     if (d->m_mouseMoveBehavior == PianoRollGraphicsViewPrivate::Move) {
-        const auto startOffset = MathUtils::round(deltaX, quantizedTickLength);
+        // 先计算目标相对位置（吸附到网格），再计算偏移
+        const auto targetRStart = snappedTick - d->m_offset;
+        const auto startOffset = targetRStart - d->m_mouseDownRStart;
         auto keyOffset = keyIndex - d->m_mouseDownKeyIndex;
         if (keyOffset > d->m_moveMaxDeltaKey)
             keyOffset = d->m_moveMaxDeltaKey;
@@ -247,9 +252,9 @@ void PianoRollGraphicsView::mouseMoveEvent(QMouseEvent *event) {
         d->resizeLeftSelectedNote(d->m_deltaTick);
         d->m_movedBeforeMouseUp = true;
     } else if (d->m_mouseMoveBehavior == PianoRollGraphicsViewPrivate::ResizeRight) {
-        const auto lengthOffset = MathUtils::round(deltaX, quantizedTickLength);
-        const auto right = d->m_mouseDownRStart + d->m_mouseDownLength + lengthOffset;
-        const auto length = right - d->m_mouseDownRStart;
+        // 先计算目标右侧位置（吸附到网格），再计算长度
+        const auto targetRight = snappedTick - d->m_offset;
+        const auto length = targetRight - d->m_mouseDownRStart;
         auto deltaLength = length - d->m_mouseDownLength;
         if (length < quantizedTickLength)
             deltaLength = -(d->m_mouseDownLength - quantizedTickLength);
@@ -271,8 +276,18 @@ void PianoRollGraphicsView::mouseMoveEvent(QMouseEvent *event) {
 
 void PianoRollGraphicsView::mouseReleaseEvent(QMouseEvent *event) {
     Q_D(PianoRollGraphicsView);
+    // 如果按钮不匹配，但当前没有按钮被按下（触摸板操作时可能出现这种情况），清理状态
     if (event->button() != d->m_mouseDownButton) {
-        qWarning() << "Ignored mouseReleaseEvent" << event;
+        // 检查是否真的没有按钮被按下
+        if (event->buttons() == Qt::NoButton && d->m_mouseDown) {
+            // 清理状态并提交操作
+            d->m_mouseDown = false;
+            d->m_mouseDownButton = Qt::NoButton;
+            if (!cancelRequested)
+                commitAction();
+            cancelRequested = false;
+        }
+        TimeGraphicsView::mouseReleaseEvent(event);
         return;
     }
     d->m_mouseDown = false;

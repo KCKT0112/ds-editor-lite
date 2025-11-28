@@ -152,6 +152,11 @@ private:
     QTimer m_timer;
     bool m_touchPadLock = false;
 
+    // 播放时翻页优化
+    bool m_isPageTurning = false;
+    double m_lastPageTurnTick = 0;
+    static constexpr double PAGE_TURN_THROTTLE_TICKS = 1920.0; // 节流：至少间隔1拍才允许再次翻页
+
     TimeGraphicsScene *m_scene;
     TimeGridView *m_gridItem = nullptr;
     TimeIndicatorView *m_scenePlayPosIndicator = nullptr;
