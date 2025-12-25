@@ -7,14 +7,19 @@
 
 
 #include "Model/AppModel/SingingClip.h"
+#include "Global/PlaybackGlobal.h"
 
 #include <QWidget>
+#include <QPropertyAnimation>
+
+using namespace PlaybackGlobal;
 
 class Note;
 class Phoneme;
 
 class PhonemeView final : public QWidget {
     Q_OBJECT
+    Q_PROPERTY(double trailOpacity READ trailOpacity WRITE setTrailOpacity)
 
 public:
     explicit PhonemeView(QWidget *parent = nullptr);
@@ -47,6 +52,9 @@ signals:
 public slots:
     void setTimeRange(double startTick, double endTick);
     void setPosition(double tick);
+
+    double trailOpacity() const;
+    void setTrailOpacity(double opacity);
 
 private slots:
     void onTempoChanged();
@@ -91,6 +99,12 @@ private:
     QMap<QString, QPixmap> m_editedTextCache;
 
     SingingClip *m_clip = nullptr;
+
+    static constexpr double TRAIL_WIDTH = 15.0; // Maximum width of the trail in pixels
+    double m_trailOpacity = 0.0;
+    QPropertyAnimation m_trailOpacityAnimation;
+
+    void drawTrail(QPainter *painter, double x, const QColor &indicatorColor);
 
     PhonemeViewModel *phonemeAtTick(double tick);
     QList<PhonemeViewModel *> findPhonemesByNoteId(int noteId);

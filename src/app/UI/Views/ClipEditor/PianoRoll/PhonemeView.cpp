@@ -14,6 +14,8 @@
 #include <QElapsedTimer>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QLinearGradient>
+#include <cmath>
 
 PhonemeView::PhonemeView(QWidget *parent) : QWidget(parent) {
     setAttribute(Qt::WA_Hover, true);
@@ -24,6 +26,29 @@ PhonemeView::PhonemeView(QWidget *parent) : QWidget(parent) {
     connect(appModel, &AppModel::tempoChanged, this, &PhonemeView::onTempoChanged);
     connect(playbackController, &PlaybackController::positionChanged, this,
             &PhonemeView::setPosition);
+    connect(playbackController, &PlaybackController::playbackStatusChanged, this,
+            [this](PlaybackStatus status) {
+                // Animate trail opacity
+                m_trailOpacityAnimation.stop();
+                if (status == Playing) {
+                    m_trailOpacityAnimation.setStartValue(m_trailOpacity);
+                    m_trailOpacityAnimation.setEndValue(1.0);
+                } else {
+                    m_trailOpacityAnimation.setStartValue(m_trailOpacity);
+                    m_trailOpacityAnimation.setEndValue(0.0);
+                }
+                m_trailOpacityAnimation.start();
+            });
+
+    // Setup trail opacity animation
+    m_trailOpacityAnimation.setTargetObject(this);
+    m_trailOpacityAnimation.setPropertyName("trailOpacity");
+    m_trailOpacityAnimation.setDuration(300);
+    m_trailOpacityAnimation.setEasingCurve(QEasingCurve::OutCubic);
+
+    // Set initial playback status
+    auto status = playbackController->playbackStatus();
+    m_trailOpacity = (status == Playing) ? 1.0 : 0.0;
 }
 
 void PhonemeView::setDataContext(SingingClip *clip) {
@@ -55,6 +80,17 @@ void PhonemeView::setTimeRange(const double startTick, const double endTick) {
 void PhonemeView::setPosition(const double tick) {
     m_position = tick;
     update();
+}
+
+double PhonemeView::trailOpacity() const {
+    return m_trailOpacity;
+}
+
+void PhonemeView::setTrailOpacity(double opacity) {
+    if (qAbs(m_trailOpacity - opacity) > 0.001) {
+        m_trailOpacity = opacity;
+        update();
+    }
 }
 
 void PhonemeView::onTempoChanged() {
@@ -217,13 +253,20 @@ void PhonemeView::paintEvent(QPaintEvent *event) {
         }
     }
 
-    // Draw playback indicator
+    // Draw playback indicator with trail effect
     painter.setRenderHint(QPainter::Antialiasing);
+    auto x = tickToX(m_position);
+    
+    // Draw trail effect if opacity > 0
+    if (m_trailOpacity > 0.0) {
+        drawTrail(&painter, x, positionLineColor);
+    }
+    
+    // Draw the main indicator line
     auto penWidth = 1.0;
     pen.setWidthF(penWidth);
     pen.setColor(positionLineColor);
     painter.setPen(pen);
-    auto x = tickToX(m_position);
     painter.drawLine(QLineF(x, 0, x, rect().height()));
 
     // const auto time = static_cast<double>(timer.nsecsElapsed()) / 1000000.0;
@@ -538,4 +581,33 @@ void PhonemeView::cacheText(const QString &text, const bool edited, const QPaint
         m_editedTextCache.insert(text, pixmap);
     else
         m_originalTextCache.insert(text, pixmap);
+}
+
+void PhonemeView::drawTrail(QPainter *painter, double x, const QColor &indicatorColor) {
+    const double power = 2.0; // Power function exponent for smooth fade
+    const double topY = 0;
+    const double bottomY = rect().height();
+    const double height = bottomY - topY;
+
+    // Create gradient from right (indicator color) to left (transparent)
+    // Gradient goes from x (right, indicator color) to x - TRAIL_WIDTH (left, transparent)
+    QLinearGradient gradient(x, 0, x - TRAIL_WIDTH, 0);
+    
+    // Use power function for smooth fade: alpha = (1 - t)^power
+    // where t goes from 0 (at line) to 1 (at left edge)
+    // Apply overall opacity animation and multiply by 0.7 for higher visibility
+    const int stops = 32; // Number of gradient stops for smooth transition
+    for (int i = 0; i <= stops; ++i) {
+        double t = static_cast<double>(i) / stops; // t from 0 to 1
+        double alpha = std::pow(1.0 - t, power) * m_trailOpacity * 0.7; // Power function fade with opacity
+        QColor color(indicatorColor.red(), indicatorColor.green(), indicatorColor.blue(),
+                     static_cast<int>(alpha * 255));
+        gradient.setColorAt(t, color);
+    }
+
+    // Draw the trail rectangle
+    QRectF trailRect(x - TRAIL_WIDTH, topY, TRAIL_WIDTH, height);
+    painter->setPen(Qt::NoPen);
+    painter->setBrush(gradient);
+    painter->drawRect(trailRect);
 }

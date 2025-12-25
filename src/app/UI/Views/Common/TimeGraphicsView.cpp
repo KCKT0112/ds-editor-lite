@@ -12,6 +12,7 @@
 #include "TimeIndicatorView.h"
 #include "Model/AppStatus/AppStatus.h"
 #include "Model/AppOptions/AppOptions.h"
+#include "Controller/PlaybackController.h"
 
 #if defined(Q_OS_MAC) && QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
 #  define SUPPORTS_MOUSEWHEEL_DETECT_NATIVE
@@ -72,9 +73,13 @@ TimeGraphicsView::TimeGraphicsView(TimeGraphicsScene *scene, bool showLastPlayba
 #endif
 
     connect(this, &TimeGraphicsView::visibleRectChanged,
-            [this](const QRectF &rect) { m_scene->setVisibleRect(rect); });
+            [this](const QRectF &rect) {
+                m_scene->setVisibleRect(rect);
+            });
     connect(this, &TimeGraphicsView::scaleChanged,
-            [this](double sx, double sy) { m_scene->setScaleXY(sx, sy); });
+            [this](double sx, double sy) {
+                m_scene->setScaleXY(sx, sy);
+            });
     connect(m_scene, &TimeGraphicsScene::baseSizeChanged, this,
             &TimeGraphicsView::adjustScaleXToFillView);
 
@@ -85,6 +90,16 @@ TimeGraphicsView::TimeGraphicsView(TimeGraphicsScene *scene, bool showLastPlayba
     curPlayPosPen.setColor(QColor(200, 200, 200));
     m_scenePlayPosIndicator->setPen(curPlayPosPen);
     m_scene->addTimeIndicator(m_scenePlayPosIndicator);
+
+    // Connect playback status to update trail effect
+    connect(playbackController, &PlaybackController::playbackStatusChanged, this,
+            [this](PlaybackStatus status) {
+                if (m_scenePlayPosIndicator)
+                    m_scenePlayPosIndicator->setPlaybackStatus(status);
+            });
+    // Set initial playback status
+    if (m_scenePlayPosIndicator)
+        m_scenePlayPosIndicator->setPlaybackStatus(playbackController->playbackStatus());
 
     m_sceneLastPlayPosIndicator = new TimeIndicatorView;
     m_sceneLastPlayPosIndicator->setPixelsPerQuarterNote(m_pixelsPerQuarterNote);
@@ -100,9 +115,13 @@ TimeGraphicsView::TimeGraphicsView(TimeGraphicsScene *scene, bool showLastPlayba
     setEnsureSceneFillViewX(true);
 
     connect(this, &TimeGraphicsView::scaleChanged, this,
-            [this] { emit timeRangeChanged(startTick(), endTick()); });
+            [this] {
+                emit timeRangeChanged(startTick(), endTick());
+            });
     connect(this, &TimeGraphicsView::visibleRectChanged, this,
-            [this] { emit timeRangeChanged(startTick(), endTick()); });
+            [this] {
+                emit timeRangeChanged(startTick(), endTick());
+            });
 }
 
 TimeGraphicsScene *TimeGraphicsView::scene() {
@@ -441,8 +460,9 @@ void TimeGraphicsView::mousePressEvent(QMouseEvent *event) {
             m_isDraggingScrollBar = true;
             m_draggingScrollbarType = scrollBar->orientation();
             m_mouseDownPos = event->position().toPoint();
-            auto bar = scrollBar->orientation() == Qt::Horizontal ? horizontalScrollBar()
-                                                                  : verticalScrollBar();
+            auto bar = scrollBar->orientation() == Qt::Horizontal
+                           ? horizontalScrollBar()
+                           : verticalScrollBar();
             if (scrollBar->mouseOnHandle(event->pos())) {
                 scrollBar->moveToPressedState();
                 m_mouseOnScrollBarHandle = true;
@@ -580,8 +600,9 @@ void TimeGraphicsView::handleHoverEnterEvent(QHoverEvent *event) {
     auto pos = event->position().toPoint();
     // qDebug() << pos;
     if (auto scrollBar = scrollBarAt(pos)) {
-        m_prevHoveredItem = scrollBar->orientation() == Qt::Horizontal ? ItemType::HorizontalBar
-                                                                       : ItemType::VerticalBar;
+        m_prevHoveredItem = scrollBar->orientation() == Qt::Horizontal
+                                ? ItemType::HorizontalBar
+                                : ItemType::VerticalBar;
         if (scrollBar->mouseOnHandle(pos))
             scrollBar->moveToHoverState();
         else
