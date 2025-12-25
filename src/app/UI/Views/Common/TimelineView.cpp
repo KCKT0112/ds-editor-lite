@@ -83,7 +83,7 @@ void TimelineView::paintEvent(QPaintEvent *event) {
     // painter.setBrush(Qt::NoBrush);
 
     // Draw graduates
-    drawTimeline(&painter, m_startTick, m_endTick, rect().width());
+    drawTimeline(&painter, m_startTick, m_endTick, rect().width(), 1.0);
 
     // Draw Pieces
     if (m_clip)
@@ -157,6 +157,46 @@ void TimelineView::drawBeat(QPainter *painter, int tick, int bar, int beat) {
 }
 
 void TimelineView::drawEighth(QPainter *painter, int tick) {
+    QPen pen;
+    auto x = tickToX(tick);
+    pen.setColor(QColor(57, 59, 61));
+    painter->setPen(pen);
+    auto y1 = rect().height() - 8;
+    auto y2 = rect().height();
+    painter->drawLine(QLineF(x, y1, x, y2));
+}
+
+void TimelineView::drawSixteenth(QPainter *painter, int tick) {
+    QPen pen;
+    auto x = tickToX(tick);
+    pen.setColor(QColor(57, 59, 61));
+    painter->setPen(pen);
+    auto y1 = rect().height() - 8;
+    auto y2 = rect().height();
+    painter->drawLine(QLineF(x, y1, x, y2));
+}
+
+void TimelineView::drawThirtySecond(QPainter *painter, int tick) {
+    QPen pen;
+    auto x = tickToX(tick);
+    pen.setColor(QColor(57, 59, 61));
+    painter->setPen(pen);
+    auto y1 = rect().height() - 8;
+    auto y2 = rect().height();
+    painter->drawLine(QLineF(x, y1, x, y2));
+}
+
+void TimelineView::drawSixtyFourth(QPainter *painter, int tick) {
+    QPen pen;
+    auto x = tickToX(tick);
+    pen.setColor(QColor(57, 59, 61));
+    painter->setPen(pen);
+    auto y1 = rect().height() - 8;
+    auto y2 = rect().height();
+    painter->drawLine(QLineF(x, y1, x, y2));
+}
+
+void TimelineView::drawOneTwentyEighth(QPainter *painter, int tick) {
     QPen pen;
     auto x = tickToX(tick);
     pen.setColor(QColor(57, 59, 61));

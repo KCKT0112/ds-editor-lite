@@ -92,9 +92,12 @@ protected:
     void mousePressEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
+    void keyPressEvent(QKeyEvent *event) override;
+    void keyReleaseEvent(QKeyEvent *event) override;
     void afterSetScale() override;
     void afterSetAnimationLevel(AnimationGlobal::AnimationLevels level) override;
     void afterSetTimeScale(double scale) override;
+    bool eventFilter(QObject *obj, QEvent *event) override;
 
     [[nodiscard]] double sceneXToTick(double pos) const;
     [[nodiscard]] double tickToSceneX(double tick) const;

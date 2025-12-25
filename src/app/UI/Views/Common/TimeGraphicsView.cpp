@@ -4,6 +4,9 @@
 
 #include "TimeGraphicsView.h"
 
+#include <QApplication>
+#include <QGuiApplication>
+#include <QKeyEvent>
 #include <QScrollBar>
 #include <QWheelEvent>
 
@@ -77,6 +80,9 @@ TimeGraphicsView::TimeGraphicsView(TimeGraphicsScene *scene, bool showLastPlayba
             [this](double sx, double sy) { m_scene->setScaleXY(sx, sy); });
     connect(m_scene, &TimeGraphicsScene::baseSizeChanged, this,
             &TimeGraphicsView::adjustScaleXToFillView);
+    
+    // Install event filter to capture Alt key events globally
+    qApp->installEventFilter(this);
 
     m_scenePlayPosIndicator = new TimeIndicatorView;
     m_scenePlayPosIndicator->setPixelsPerQuarterNote(m_pixelsPerQuarterNote);
@@ -397,8 +403,15 @@ bool TimeGraphicsView::event(QEvent *event) {
         handleHoverEnterEvent(dynamic_cast<QHoverEvent *>(event));
     else if (event->type() == QEvent::HoverLeave)
         handleHoverLeaveEvent(dynamic_cast<QHoverEvent *>(event));
-    else if (event->type() == QEvent::HoverMove)
+    else if (event->type() == QEvent::HoverMove) {
         handleHoverMoveEvent(dynamic_cast<QHoverEvent *>(event));
+        // Update no-snap mode based on Alt key state in hover events
+        if (m_gridItem) {
+            const auto keyboardModifiers = QGuiApplication::keyboardModifiers();
+            const bool noSnapMode = (keyboardModifiers & Qt::AltModifier) != 0;
+            m_gridItem->setNoSnapMode(noSnapMode);
+        }
+    }
     // else if (event->type() == QEvent::WindowActivate)
     //     qDebug() << "Window activated";
     // else if (event->type() == QEvent::WindowDeactivate)
@@ -473,6 +486,12 @@ void TimeGraphicsView::mousePressEvent(QMouseEvent *event) {
 }
 
 void TimeGraphicsView::mouseMoveEvent(QMouseEvent *event) {
+    // Update no-snap mode based on Alt key state
+    if (m_gridItem) {
+        const bool noSnapMode = (event->modifiers() & Qt::AltModifier) != 0;
+        m_gridItem->setNoSnapMode(noSnapMode);
+    }
+    
     // qDebug() << "m_isDraggingScrollBar" << m_isDraggingScrollBar << "m_mouseOnScrollBarHandle"
     //          << m_mouseOnScrollBarHandle << "m_isDraggingContent" << m_isDraggingContent;
     if (m_isDraggingScrollBar && m_mouseOnScrollBarHandle) {
@@ -516,6 +535,36 @@ void TimeGraphicsView::mouseMoveEvent(QMouseEvent *event) {
         scene()->setSelectionArea(path);
     }
     QGraphicsView::mouseMoveEvent(event);
+}
+
+bool TimeGraphicsView::eventFilter(QObject *obj, QEvent *event) {
+    // Only process keyboard events when this view is visible and has focus context
+    if (event->type() == QEvent::KeyPress || event->type() == QEvent::KeyRelease) {
+        auto *keyEvent = static_cast<QKeyEvent *>(event);
+        // Check if Alt key is pressed or released
+        if (keyEvent->key() == Qt::Key_Alt || keyEvent->key() == Qt::Key_AltGr) {
+            if (m_gridItem && isVisible()) {
+                const bool noSnapMode = (keyEvent->type() == QEvent::KeyPress);
+                m_gridItem->setNoSnapMode(noSnapMode);
+            }
+        }
+    }
+    // Let other objects process the event normally
+    return QGraphicsView::eventFilter(obj, event);
+}
+
+void TimeGraphicsView::keyPressEvent(QKeyEvent *event) {
+    if (m_gridItem && (event->key() == Qt::Key_Alt || event->key() == Qt::Key_AltGr)) {
+        m_gridItem->setNoSnapMode(true);
+    }
+    QGraphicsView::keyPressEvent(event);
+}
+
+void TimeGraphicsView::keyReleaseEvent(QKeyEvent *event) {
+    if (m_gridItem && (event->key() == Qt::Key_Alt || event->key() == Qt::Key_AltGr)) {
+        m_gridItem->setNoSnapMode(false);
+    }
+    QGraphicsView::keyReleaseEvent(event);
 }
 
 void TimeGraphicsView::mouseReleaseEvent(QMouseEvent *event) {

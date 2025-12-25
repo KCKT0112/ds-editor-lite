@@ -34,6 +34,10 @@ protected:
     void drawBar(QPainter *painter, int tick, int bar) override;
     void drawBeat(QPainter *painter, int tick, int bar, int beat) override;
     void drawEighth(QPainter *painter, int tick) override;
+    void drawSixteenth(QPainter *painter, int tick) override;
+    void drawThirtySecond(QPainter *painter, int tick) override;
+    void drawSixtyFourth(QPainter *painter, int tick) override;
+    void drawOneTwentyEighth(QPainter *painter, int tick) override;
     void wheelEvent(QWheelEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;

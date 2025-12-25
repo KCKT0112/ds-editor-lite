@@ -7,6 +7,7 @@
 #include "Model/AppModel/AppModel.h"
 #include "Model/AppStatus/AppStatus.h"
 
+#include <QGraphicsScene>
 #include <QPainter>
 #include <QPen>
 
@@ -44,6 +45,11 @@ void TimeGridView::setOffset(int tick) {
     update();
 }
 
+void TimeGridView::setNoSnapMode(bool enabled) {
+    ITimelinePainter::setNoSnapMode(enabled);
+    update();
+}
+
 void TimeGridView::paint(QPainter *painter, const QStyleOptionGraphicsItem *option,
                          QWidget *widget) {
     auto penWidth = 1;
@@ -54,7 +60,7 @@ void TimeGridView::paint(QPainter *painter, const QStyleOptionGraphicsItem *opti
     pen.setColor(m_commonLineColor);
     painter->setPen(pen);
     // painter->setRenderHint(QPainter::Antialiasing);
-    drawTimeline(painter, startTick(), endTick(), visibleRect().width());
+    drawTimeline(painter, startTick(), endTick(), visibleRect().width(), scaleX());
 }
 
 void TimeGridView::updateRectAndPos() {
@@ -87,9 +93,51 @@ void TimeGridView::drawBeat(QPainter *painter, int tick, int bar, int beat) {
 }
 
 void TimeGridView::drawEighth(QPainter *painter, int tick) {
-    QPen pen;
+    // Use current pen from painter (which may have dashed style set in drawTimeline)
+    QPen pen = painter->pen();
     auto x = sceneXToItemX(tickToSceneX(tick - m_offset));
     pen.setColor(m_commonLineColor);
+    // Preserve pen style (dashed in no-snap mode)
+    painter->setPen(pen);
+    painter->drawLine(QLineF(x, 0, x, visibleRect().height()));
+}
+
+void TimeGridView::drawSixteenth(QPainter *painter, int tick) {
+    // Use current pen from painter (which may have dashed style set in drawTimeline)
+    QPen pen = painter->pen();
+    auto x = sceneXToItemX(tickToSceneX(tick - m_offset));
+    pen.setColor(m_commonLineColor);
+    // Preserve pen style (dashed in no-snap mode)
+    painter->setPen(pen);
+    painter->drawLine(QLineF(x, 0, x, visibleRect().height()));
+}
+
+void TimeGridView::drawThirtySecond(QPainter *painter, int tick) {
+    // Use current pen from painter (which may have dashed style set in drawTimeline)
+    QPen pen = painter->pen();
+    auto x = sceneXToItemX(tickToSceneX(tick - m_offset));
+    pen.setColor(m_commonLineColor);
+    // Preserve pen style (dashed in no-snap mode)
+    painter->setPen(pen);
+    painter->drawLine(QLineF(x, 0, x, visibleRect().height()));
+}
+
+void TimeGridView::drawSixtyFourth(QPainter *painter, int tick) {
+    // Use current pen from painter (which may have dashed style set in drawTimeline)
+    QPen pen = painter->pen();
+    auto x = sceneXToItemX(tickToSceneX(tick - m_offset));
+    pen.setColor(m_commonLineColor);
+    // Preserve pen style (dashed in no-snap mode)
+    painter->setPen(pen);
+    painter->drawLine(QLineF(x, 0, x, visibleRect().height()));
+}
+
+void TimeGridView::drawOneTwentyEighth(QPainter *painter, int tick) {
+    // Use current pen from painter (which may have dashed style set in drawTimeline)
+    QPen pen = painter->pen();
+    auto x = sceneXToItemX(tickToSceneX(tick - m_offset));
+    pen.setColor(m_commonLineColor);
+    // Preserve pen style (dashed in no-snap mode)
     painter->setPen(pen);
     painter->drawLine(QLineF(x, 0, x, visibleRect().height()));
 }

@@ -289,7 +289,12 @@ void PianoRollGraphicsView::mouseMoveEvent(QMouseEvent *event) {
 
     // TODO: Optimize note moving and resizing
     if (d->m_mouseMoveBehavior == PianoRollGraphicsViewPrivate::Move) {
-        const auto startOffset = MathUtils::round(deltaX, quantizedTickLength);
+        // Calculate target start position (unaligned)
+        const auto targetStart = d->m_mouseDownRStart + deltaX;
+        // Snap target start position to quantize grid
+        const auto snappedStart = MathUtils::round(targetStart, quantizedTickLength);
+        // Calculate delta from snapped start position
+        const auto startOffset = snappedStart - d->m_mouseDownRStart;
         auto keyOffset = keyIndex - d->m_mouseDownKeyIndex;
         if (keyOffset > d->m_moveMaxDeltaKey)
             keyOffset = d->m_moveMaxDeltaKey;
@@ -300,21 +305,33 @@ void PianoRollGraphicsView::mouseMoveEvent(QMouseEvent *event) {
         d->moveSelectedNotes(d->m_deltaTick, d->m_deltaKey);
         d->m_movedBeforeMouseUp = true;
     } else if (d->m_mouseMoveBehavior == PianoRollGraphicsViewPrivate::ResizeLeft) {
+        // Calculate target start position (already snapped to quantize grid)
         const auto rStart = snappedTick - d->m_offset;
-        auto deltaStart = rStart - d->m_mouseDownRStart;
-        const auto length = d->m_mouseDownLength - deltaStart;
-        if (length < quantizedTickLength)
-            deltaStart = d->m_mouseDownLength - quantizedTickLength;
+        // Calculate new length from snapped start position
+        auto newLength = d->m_mouseDownRStart + d->m_mouseDownLength - rStart;
+        // Ensure minimum length is quantized
+        if (newLength < quantizedTickLength)
+            newLength = quantizedTickLength;
+        // Snap length to quantize grid
+        newLength = MathUtils::round(newLength, quantizedTickLength);
+        // Calculate delta start from new length
+        const auto newStart = d->m_mouseDownRStart + d->m_mouseDownLength - newLength;
+        const auto deltaStart = newStart - d->m_mouseDownRStart;
         d->m_deltaTick = deltaStart;
         d->resizeLeftSelectedNote(d->m_deltaTick);
         d->m_movedBeforeMouseUp = true;
     } else if (d->m_mouseMoveBehavior == PianoRollGraphicsViewPrivate::ResizeRight) {
-        const auto lengthOffset = MathUtils::round(deltaX, quantizedTickLength);
-        const auto right = d->m_mouseDownRStart + d->m_mouseDownLength + lengthOffset;
-        const auto length = right - d->m_mouseDownRStart;
-        auto deltaLength = length - d->m_mouseDownLength;
-        if (length < quantizedTickLength)
-            deltaLength = -(d->m_mouseDownLength - quantizedTickLength);
+        // Calculate target right edge position (unaligned)
+        const auto targetRight = d->m_mouseDownRStart + d->m_mouseDownLength + deltaX;
+        // Snap target right edge to quantize grid
+        const auto snappedRight = MathUtils::round(targetRight, quantizedTickLength);
+        // Calculate new length from snapped right edge
+        auto newLength = snappedRight - d->m_mouseDownRStart;
+        // Ensure minimum length is quantized
+        if (newLength < quantizedTickLength)
+            newLength = quantizedTickLength;
+        // Calculate delta length
+        const auto deltaLength = newLength - d->m_mouseDownLength;
         d->m_deltaTick = deltaLength;
         d->resizeRightSelectedNote(d->m_deltaTick);
         d->m_movedBeforeMouseUp = true;

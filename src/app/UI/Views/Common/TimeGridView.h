@@ -26,6 +26,7 @@ public slots:
     void setTimeSignature(int numerator, int denominator) override;
     void setQuantize(int quantize) override;
     void setOffset(int tick);
+    void setNoSnapMode(bool enabled);
     //     void onTimelineChanged();
 
 protected:
@@ -34,6 +35,10 @@ protected:
     void drawBar(QPainter *painter, int tick, int bar) override;
     void drawBeat(QPainter *painter, int tick, int bar, int beat) override;
     void drawEighth(QPainter *painter, int tick) override;
+    void drawSixteenth(QPainter *painter, int tick) override;
+    void drawThirtySecond(QPainter *painter, int tick) override;
+    void drawSixtyFourth(QPainter *painter, int tick) override;
+    void drawOneTwentyEighth(QPainter *painter, int tick) override;
     QColor barLineColor() const;
     void setBarLineColor(const QColor &color);
     QColor beatLineColor() const;
@@ -53,6 +58,7 @@ private:
     QColor m_barLineColor = {8, 9, 10};
     QColor m_beatLineColor = {22, 25, 28};
     QColor m_commonLineColor = {28, 32, 36};
+    bool m_noSnapMode = false;
 };
 
 
