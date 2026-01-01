@@ -7,6 +7,7 @@
 #include "EditClipCommonPropertiesAction.h"
 #include "EditSingingClipPropertiesAction.h"
 #include "InsertClipAction.h"
+#include "MoveClipBetweenTracksAction.h"
 #include "RemoveClipAction.h"
 #include "Model/AppModel/AudioClip.h"
 
@@ -48,4 +49,9 @@ void ClipActions::editAudioClipProperties(const QList<Clip::ClipCommonProperties
         addAction(EditClipCommonPropertiesAction::build(oldArgs[i], newArgs[i], clip, tracks[i]));
         i++;
     }
+}
+
+void ClipActions::moveClipBetweenTracks(Clip *clip, Track *fromTrack, Track *toTrack) {
+    setName(tr("Move clip between tracks"));
+    addAction(MoveClipBetweenTracksAction::build(clip, fromTrack, toTrack));
 }

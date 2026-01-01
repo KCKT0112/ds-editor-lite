@@ -46,6 +46,7 @@ private slots:
     // void onSceneSelectionChanged() const;
     void onViewScaleChanged(qreal sx, qreal sy) const;
     static void onRemoveTrackTriggered(int id);
+    void onTrackDragged(qsizetype fromIndex, qsizetype toIndex);
 
 private:
     bool eventFilter(QObject *watched, QEvent *event) override;

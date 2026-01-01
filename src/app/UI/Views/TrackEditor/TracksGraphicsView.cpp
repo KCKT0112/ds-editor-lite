@@ -188,6 +188,12 @@ void TracksGraphicsView::mouseMoveEvent(QMouseEvent *event) {
         left = MathUtils::round(m_mouseDownStart + m_mouseDownClipStart + delta, quantize);
         start = left - m_mouseDownClipStart;
         m_currentEditingClip->setStart(start);
+
+        // Support cross-track dragging
+        const int currentTrackIndex = m_scene->trackIndexAt(curPos.y());
+        if (currentTrackIndex >= 0 && currentTrackIndex < appModel->tracks().size()) {
+            m_currentEditingClip->setTrackIndex(currentTrackIndex);
+        }
     } else if (m_mouseMoveBehavior == ResizeLeft) {
         m_movedBeforeMouseUp = true;
         left = MathUtils::round(m_mouseDownStart + m_mouseDownClipStart + delta, quantize);
@@ -238,17 +244,46 @@ void TracksGraphicsView::mouseMoveEvent(QMouseEvent *event) {
 }
 
 void TracksGraphicsView::mouseReleaseEvent(QMouseEvent *event) {
-    // auto scenePos = mapToScene(event->pos());
-    // if (m_mouseDownPos == scenePos) {
-    //     m_propertyEdited = false;
-    // }
-    if (m_mouseMoveBehavior != None && m_movedBeforeMouseUp) {
-        const Clip::ClipCommonProperties args(*m_currentEditingClip);
-        trackController->onClipPropertyChanged(args);
+    if (m_mouseMoveBehavior != None && m_movedBeforeMouseUp && m_currentEditingClip) {
+        const int currentTrackIndex = m_currentEditingClip->trackIndex();
+
+        // Check if clip was moved to a different track
+        if (m_mouseMoveBehavior == Move && currentTrackIndex != m_mouseDownTrackIndex &&
+            m_mouseDownTrackId != -1) {
+            // Cross-track move detected
+            if (currentTrackIndex >= 0 && currentTrackIndex < appModel->tracks().size()) {
+                const int currentTrackId = appModel->tracks().at(currentTrackIndex)->id();
+                const int clipId = m_currentEditingClip->id();
+
+                // Restore original track index temporarily for the move operation
+                m_currentEditingClip->setTrackIndex(m_mouseDownTrackIndex);
+
+                // Update clip properties first (position change on original track)
+                const Clip::ClipCommonProperties args(*m_currentEditingClip);
+                trackController->onClipPropertyChanged(args);
+
+                // Then move to new track
+                trackController->onMoveClipBetweenTracks(clipId, m_mouseDownTrackId,
+                                                          currentTrackId);
+
+                // Restore the new track index for UI
+                m_currentEditingClip->setTrackIndex(currentTrackIndex);
+            } else {
+                // Invalid track index, restore to original track
+                m_currentEditingClip->setTrackIndex(m_mouseDownTrackIndex);
+            }
+        } else {
+            // Normal move/resize operation
+            const Clip::ClipCommonProperties args(*m_currentEditingClip);
+            trackController->onClipPropertyChanged(args);
+        }
     }
+
     m_mouseMoveBehavior = None;
     m_movedBeforeMouseUp = false;
     m_currentEditingClip = nullptr;
+    m_mouseDownTrackIndex = -1;
+    m_mouseDownTrackId = -1;
     appStatus->currentEditObject = AppStatus::EditObjectType::None;
     TimeGraphicsView::mouseReleaseEvent(event);
 }
@@ -354,6 +389,16 @@ void TracksGraphicsView::prepareForMovingOrResizingClip(const QMouseEvent *event
     m_mouseDownClipStart = m_currentEditingClip->clipStart();
     m_mouseDownLength = m_currentEditingClip->length();
     m_mouseDownClipLen = m_currentEditingClip->clipLen();
+    m_mouseDownTrackIndex = m_currentEditingClip->trackIndex();
+
+    // Get track ID for cross-track dragging
+    m_mouseDownTrackId = -1;  // Reset to invalid value first
+    int trackIndex = -1;
+    appModel->findClipById(m_currentEditingClip->id(), trackIndex);
+    if (trackIndex >= 0 && trackIndex < appModel->tracks().size()) {
+        m_mouseDownTrackId = appModel->tracks().at(trackIndex)->id();
+    }
+
     m_movedBeforeMouseUp = false;
 }
 

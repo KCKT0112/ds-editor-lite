@@ -86,6 +86,16 @@ void TrackController::onRemoveTrack(const int id) {
     historyManager->record(a);
 }
 
+void TrackController::onMoveTrack(const qsizetype fromIndex, const qsizetype toIndex) {
+    if (fromIndex == toIndex)
+        return;
+
+    const auto a = new TrackActions;
+    a->moveTrack(fromIndex, toIndex, appModel);
+    a->execute();
+    historyManager->record(a);
+}
+
 void TrackController::addAudioClipToNewTrack(const QString &filePath) {
     const auto audioClip = new AudioClip;
     audioClip->setPath(filePath);
@@ -135,6 +145,12 @@ void TrackController::onClipPropertyChanged(const Clip::ClipCommonProperties &ar
     qDebug() << "TrackController::onClipPropertyChanged";
     int trackIndex = -1;
     const auto clip = appModel->findClipById(args.id, trackIndex);
+
+    if (!clip || trackIndex < 0 || trackIndex >= appModel->tracks().size()) {
+        qWarning() << "TrackController::onClipPropertyChanged: clip not found or invalid track index";
+        return;
+    }
+
     const auto track = appModel->tracks().at(trackIndex);
 
     if (clip->clipType() == Clip::Audio) {
@@ -221,6 +237,28 @@ SingingClip *TrackController::onNewSingingClip(const int trackIndex, const int t
 
     setActiveClip(singingClip->id());
     return singingClip;
+}
+
+void TrackController::onMoveClipBetweenTracks(const int clipId, const int fromTrackId,
+                                               const int toTrackId) {
+    if (fromTrackId == toTrackId)
+        return;
+
+    const auto fromTrack = appModel->findTrackById(fromTrackId);
+    const auto toTrack = appModel->findTrackById(toTrackId);
+
+    if (!fromTrack || !toTrack)
+        return;
+
+    const auto clip = fromTrack->findClipById(clipId);
+
+    if (!clip)
+        return;
+
+    const auto a = new ClipActions;
+    a->moveClipBetweenTracks(clip, fromTrack, toTrack);
+    a->execute();
+    historyManager->record(a);
 }
 
 void TrackController::handleDecodeAudioTaskFinished(DecodeAudioTask *task) {

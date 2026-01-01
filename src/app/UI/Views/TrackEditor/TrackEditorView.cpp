@@ -103,6 +103,8 @@ TrackEditorView::TrackEditorView(QWidget *parent) : PanelView(AppGlobal::TracksE
     connect(appModel, &AppModel::modelChanged, this, &TrackEditorView::onModelChanged);
     connect(appModel, &AppModel::trackChanged, this, &TrackEditorView::onTrackChanged);
 
+    connect(m_trackListView, &TrackListView::trackDragged, this, &TrackEditorView::onTrackDragged);
+
     connect(appStatus, &AppStatus::projectEditableLengthChanged, m_graphicsView,
             &TracksGraphicsView::setSceneLength);
 }
@@ -215,6 +217,10 @@ TrackViewModel *TrackEditorView::ViewModel::findTrack(const Track *dsTrack) {
 }
 
 void TrackEditorView::onTrackInserted(Track *dsTrack, const qsizetype trackIndex) {
+    qDebug() << "TrackEditorView::onTrackInserted trackIndex:" << trackIndex
+             << "viewModel.tracks.count:" << m_viewModel.tracks.count()
+             << "trackListView.count:" << m_trackListView->count();
+
     connect(dsTrack, &Track::propertyChanged, this, [this] { onTrackPropertyChanged(); });
     connect(dsTrack, &Track::clipChanged, this,
             [dsTrack, this](const Track::ClipChangeType type, Clip *clip) {
@@ -358,6 +364,15 @@ void TrackEditorView::updateClipOnView(Clip *clip) {
 }
 
 void TrackEditorView::onTrackRemoved(const Track *dsTrack, const qsizetype index) {
+    qDebug() << "TrackEditorView::onTrackRemoved index:" << index
+             << "viewModel.tracks.count:" << m_viewModel.tracks.count()
+             << "trackListView.count:" << m_trackListView->count();
+
+    if (index < 0 || index >= m_viewModel.tracks.count()) {
+        qWarning() << "TrackEditorView::onTrackRemoved invalid index";
+        return;
+    }
+
     disconnect(dsTrack, nullptr, this, nullptr);
     // disconnect(m_tracksScene, &TracksGraphicsScene::selectionChanged, this,
     //            &TrackEditorView::onSceneSelectionChanged);
@@ -387,4 +402,42 @@ void TrackEditorView::onTrackRemoved(const Track *dsTrack, const qsizetype index
         }
     // connect(m_tracksScene, &TracksGraphicsScene::selectionChanged, this,
     //         &TrackEditorView::onSceneSelectionChanged);
+}
+
+void TrackEditorView::onTrackDragged(const qsizetype fromIndex, const qsizetype toIndex) {
+    qDebug() << "TrackEditorView::onTrackDragged fromIndex:" << fromIndex << "toIndex:" << toIndex;
+
+    // Qt's drag & drop has already moved the UI items in TrackListView
+    // Now we need to sync the data model WITHOUT triggering UI updates
+    // since the UI is already correct
+
+    // Temporarily disconnect trackChanged signal to prevent UI updates
+    disconnect(appModel, &AppModel::trackChanged, this, &TrackEditorView::onTrackChanged);
+
+    // Update the data model (this will trigger trackChanged signal, but we've disconnected it)
+    trackController->onMoveTrack(fromIndex, toIndex);
+
+    // Manually sync the ViewModel to match the new order
+    if (fromIndex >= 0 && fromIndex < m_viewModel.tracks.size() &&
+        toIndex >= 0 && toIndex <= m_viewModel.tracks.size()) {
+        auto track = m_viewModel.tracks.takeAt(fromIndex);
+        m_viewModel.tracks.insert(toIndex, track);
+
+        // Update track indices for all tracks
+        for (int i = 0; i < m_viewModel.tracks.count(); ++i) {
+            const auto widgetItem = m_trackListView->item(i);
+            const auto widget = m_trackListView->itemWidget(widgetItem);
+            const auto trackWidget = dynamic_cast<TrackControlView *>(widget);
+            trackWidget->setTrackIndex(i + 1);
+            // Update clips' track index
+            for (const auto &clipItem : m_viewModel.tracks.at(i)->clips) {
+                clipItem->setTrackIndex(i);
+            }
+        }
+    }
+
+    // Reconnect the signal
+    connect(appModel, &AppModel::trackChanged, this, &TrackEditorView::onTrackChanged);
+
+    qDebug() << "TrackEditorView::onTrackDragged completed";
 }
