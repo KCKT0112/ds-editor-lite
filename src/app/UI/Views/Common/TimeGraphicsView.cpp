@@ -10,6 +10,7 @@
 #include "TimeGraphicsScene.h"
 #include "TimeGridView.h"
 #include "TimeIndicatorView.h"
+#include "Controller/PlaybackController.h"
 #include "Model/AppStatus/AppStatus.h"
 #include "Model/AppOptions/AppOptions.h"
 
@@ -103,6 +104,13 @@ TimeGraphicsView::TimeGraphicsView(TimeGraphicsScene *scene, bool showLastPlayba
             [this] { emit timeRangeChanged(startTick(), endTick()); });
     connect(this, &TimeGraphicsView::visibleRectChanged, this,
             [this] { emit timeRangeChanged(startTick(), endTick()); });
+
+    // When auto scroll is re-enabled, jump to playback position immediately if it's out of view
+    connect(appStatus, &AppStatus::autoScrollEnabledChanged, this, [this](bool enabled) {
+        if (enabled && (m_playbackPosition < startTick() || m_playbackPosition > endTick())) {
+            setViewportCenterAtTickImmediate(m_playbackPosition);
+        }
+    });
 }
 
 TimeGraphicsScene *TimeGraphicsView::scene() {
@@ -361,6 +369,12 @@ bool TimeGraphicsView::event(QEvent *event) {
         auto gestureEvent = static_cast<QNativeGestureEvent *>(event);
 
         if (gestureEvent->gestureType() == Qt::ZoomNativeGesture) {
+            // Disable auto scroll when user zooms during playback
+            if (playbackController->playbackStatus() == PlaybackGlobal::Playing &&
+                appStatus->autoScrollEnabled) {
+                appStatus->autoScrollEnabled = false;
+            }
+
             auto cursorGlobalPos = gestureEvent->globalPosition().toPoint();
             auto cursorPos = mapFromGlobal(cursorGlobalPos);
             auto scenePos = mapToScene(cursorPos);
@@ -407,6 +421,12 @@ bool TimeGraphicsView::event(QEvent *event) {
 }
 
 void TimeGraphicsView::wheelEvent(QWheelEvent *event) {
+    // Disable auto scroll when user manually scrolls/zooms during playback
+    if (playbackController->playbackStatus() == PlaybackGlobal::Playing &&
+        appStatus->autoScrollEnabled) {
+        appStatus->autoScrollEnabled = false;
+    }
+
     if (event->modifiers() == Qt::ControlModifier) {
         onWheelHorScale(event);
     } else if (event->modifiers() == Qt::AltModifier) {
@@ -436,6 +456,11 @@ void TimeGraphicsView::resizeEvent(QResizeEvent *event) {
 void TimeGraphicsView::mousePressEvent(QMouseEvent *event) {
     if (scene()) {
         if (auto scrollBar = scrollBarAt(event->position().toPoint())) {
+            // Disable auto scroll when user drags scrollbar during playback
+            if (playbackController->playbackStatus() == PlaybackGlobal::Playing &&
+                appStatus->autoScrollEnabled) {
+                appStatus->autoScrollEnabled = false;
+            }
             // auto oriStr = scrollBar->orientation() == Qt::Horizontal ? "horizontal" : "vertical";
             // qDebug() << "mouse down on" << oriStr << "scrollbar";
             m_isDraggingScrollBar = true;
@@ -694,7 +719,7 @@ void TimeGraphicsView::setPlaybackPosition(double tick) {
     if (m_scenePlayPosIndicator != nullptr)
         m_scenePlayPosIndicator->setPosition(tick);
 
-    if (!m_autoTurnPage || appStatus->currentEditObject != AppStatus::EditObjectType::None)
+    if (!appStatus->autoScrollEnabled || appStatus->currentEditObject != AppStatus::EditObjectType::None)
         return;
 
     if (m_playbackPosition > endTick()) {
@@ -720,6 +745,13 @@ void TimeGraphicsView::setViewportCenterAtTick(double tick) {
     auto targetStart = tick - tickRange / 2;
     // qDebug() << "tickRange" << tickRange << "tick" << tick << "targetStart" << targetStart;
     setViewportStartTick(targetStart);
+}
+
+void TimeGraphicsView::setViewportCenterAtTickImmediate(double tick) {
+    auto tickRange = endTick() - startTick();
+    auto targetStart = tick - tickRange / 2;
+    auto sceneX = qRound(tickToSceneX(targetStart - m_offset));
+    setHorizontalBarValue(sceneX);
 }
 
 void TimeGraphicsView::pageAdd() {

@@ -44,6 +44,9 @@ public:
     Property<QList<int>> selectedNotes;
     Property<EditObjectType> currentEditObject = EditObjectType::None;
 
+    // Playback
+    Property<bool> autoScrollEnabled = true;
+
 signals:
     // Modules
     void moduleStatusChanged(AppStatus::ModuleType module, AppStatus::ModuleStatus status);
@@ -59,6 +62,9 @@ signals:
     void activeClipIdChanged(int newId);
     void noteSelectionChanged(const QList<int> &selectedNotes);
     void editingChanged(AppStatus::EditObjectType type);
+
+    // Playback
+    void autoScrollEnabledChanged(bool enabled);
 };
 
 #endif // APPSTATUS_H

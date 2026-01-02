@@ -71,6 +71,14 @@ TitleControlGroup>QPushButton#btnPause:checked {
     background-color: #40FFCD9B;
 }
 
+TitleControlGroup>QPushButton#btnAutoScroll:checked {
+    background-color: #409BBAFF;
+}
+
+TitleControlGroup>QPushButton#btnAutoScroll:hover {
+    background-color: #409BBAFF;
+}
+
 TitleControlGroup>EditLabel {
     height: 28px;
     padding: 0px 12px;

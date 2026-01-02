@@ -9,6 +9,7 @@
 #include "Controller/AppController.h"
 #include "Controller/PlaybackController.h"
 #include "Model/AppModel/AppModel.h"
+#include "Model/AppStatus/AppStatus.h"
 #include "UI/Controls/ComboBox.h"
 #include "UI/Controls/EditLabel.h"
 #include "UI/Controls/LineEdit.h"
@@ -54,6 +55,13 @@ PlaybackView::PlaybackView(QWidget *parent) : QWidget(parent) {
     m_btnPause->setIcon(icoPauseWhite);
     // m_btnPause->setText("Pause");
     m_btnPause->setCheckable(true);
+
+    m_btnAutoScroll = new QPushButton;
+    m_btnAutoScroll->setObjectName("btnAutoScroll");
+    m_btnAutoScroll->setCheckable(true);
+    m_btnAutoScroll->setChecked(appStatus->autoScrollEnabled);
+    m_btnAutoScroll->setToolTip(tr("Auto Scroll"));
+    updateAutoScrollView();
 
     m_elTime = new EditLabel;
     m_elTime->setObjectName("elTime");
@@ -135,6 +143,7 @@ PlaybackView::PlaybackView(QWidget *parent) : QWidget(parent) {
     transportLayout->addWidget(m_btnStop);
     transportLayout->addWidget(m_btnPlay);
     transportLayout->addWidget(m_btnPause);
+    transportLayout->addWidget(m_btnAutoScroll);
     transportLayout->addWidget(m_elTime);
     transportLayout->setSpacing(1);
     transportLayout->setContentsMargins({});
@@ -180,6 +189,15 @@ PlaybackView::PlaybackView(QWidget *parent) : QWidget(parent) {
     connect(appModel, &AppModel::modelChanged, this, &PlaybackView::updateView);
     connect(appModel, &AppModel::tempoChanged, this, &PlaybackView::onTempoChanged);
     connect(appModel, &AppModel::timeSignatureChanged, this, &PlaybackView::onTimeSignatureChanged);
+
+    connect(m_btnAutoScroll, &QPushButton::clicked, this, [this](bool checked) {
+        appStatus->autoScrollEnabled = checked;
+        updateAutoScrollView();
+    });
+    connect(appStatus, &AppStatus::autoScrollEnabledChanged, this, [this](bool enabled) {
+        m_btnAutoScroll->setChecked(enabled);
+        updateAutoScrollView();
+    });
 }
 
 void PlaybackView::updateView() {
@@ -267,5 +285,13 @@ void PlaybackView::updatePlaybackControlView() {
 
         m_btnPause->setChecked(false);
         m_btnPause->setIcon(icoPauseWhite);
+    }
+}
+
+void PlaybackView::updateAutoScrollView() {
+    if (m_btnAutoScroll->isChecked()) {
+        m_btnAutoScroll->setIcon(icoAutoScrollBlack);
+    } else {
+        m_btnAutoScroll->setIcon(icoAutoScrollWhite);
     }
 }
