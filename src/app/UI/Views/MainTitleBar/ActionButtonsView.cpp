@@ -4,12 +4,22 @@
 
 #include "ActionButtonsView.h"
 
+#include "MainTitleBarIconPalette.h"
 #include "Modules/History/HistoryManager.h"
 #include "UI/Controls/DividerLine.h"
 #include "UI/Controls/ToolTipFilter.h"
+#include "UI/Utils/IconUtils.h"
 
 #include <QHBoxLayout>
+#include <QIcon>
 #include <QPushButton>
+
+namespace {
+    QIcon buildActionIcon(const QString &svgPath, const QSize &iconSize) {
+        return IconUtils::createTintedSvgIcon(svgPath, iconSize,
+                                              MainTitleBarIconPalette::actionPalette());
+    }
+}
 
 ActionButtonsView::ActionButtonsView(QWidget *parent) : QWidget(parent) {
     auto dividerLine = new DividerLine(Qt::Vertical);
@@ -18,7 +28,8 @@ ActionButtonsView::ActionButtonsView(QWidget *parent) : QWidget(parent) {
     m_btnSave = new QPushButton;
     m_btnSave->setObjectName("btnSave");
     m_btnSave->setFixedSize(m_contentHeight, m_contentHeight);
-    m_btnSave->setIcon(icoSaveWhite);
+    m_btnSave->setIconSize(m_iconSize);
+    m_btnSave->setIcon(buildActionIcon(":svg/icons/save_16_filled.svg", m_iconSize));
     m_btnSave->setToolTip(tr("Save Project"));
     m_btnSave->installEventFilter(new ToolTipFilter(m_btnSave));
     connect(m_btnSave, &QPushButton::clicked, this, [this] { emit saveTriggered(); });
@@ -26,7 +37,8 @@ ActionButtonsView::ActionButtonsView(QWidget *parent) : QWidget(parent) {
     m_btnUndo = new QPushButton;
     m_btnUndo->setObjectName("btnUndo");
     m_btnUndo->setFixedSize(m_contentHeight, m_contentHeight);
-    m_btnUndo->setIcon(icoUndoWhite);
+    m_btnUndo->setIconSize(m_iconSize);
+    m_btnUndo->setIcon(buildActionIcon(":svg/icons/arrow_undo_16_filled.svg", m_iconSize));
     m_btnUndo->setEnabled(false);
     // m_btnUndo->setShortcut(QKeyCombination(Qt::CTRL, Qt::Key_Z));
     m_btnUndo->setToolTip(tr("Undo"));
@@ -36,7 +48,8 @@ ActionButtonsView::ActionButtonsView(QWidget *parent) : QWidget(parent) {
     m_btnRedo = new QPushButton;
     m_btnRedo->setObjectName("btnRedo");
     m_btnRedo->setFixedSize(m_contentHeight, m_contentHeight);
-    m_btnRedo->setIcon(icoRedoWhite);
+    m_btnRedo->setIconSize(m_iconSize);
+    m_btnRedo->setIcon(buildActionIcon(":svg/icons/arrow_redo_16_filled.svg", m_iconSize));
     m_btnRedo->setEnabled(false);
     // m_btnRedo->setShortcut(QKeyCombination(Qt::CTRL, Qt::Key_Y));
     m_btnRedo->setToolTip(tr("Redo"));

@@ -5,6 +5,7 @@
 #ifndef PLAYBACKVIEW_H
 #define PLAYBACKVIEW_H
 
+#include <QSize>
 #include <QWidget>
 
 #include "Global/PlaybackGlobal.h"
@@ -54,18 +55,10 @@ private:
     PlaybackStatus m_status = Stopped;
 
     int m_contentHeight = 28;
+    QSize m_iconSize = QSize(16, 16);
 
     QString toFormattedTickTime(int ticks) const;
     int fromTickTimeString(const QStringList &splitStr) const;
-
-    const QIcon icoPlayWhite = QIcon(":svg/icons/play_16_filled_white.svg");
-    const QIcon icoPlayBlack = QIcon(":svg/icons/play_16_filled.svg");
-    const QIcon icoPauseWhite = QIcon(":svg/icons/pause_16_filled_white.svg");
-    const QIcon icoPauseBlack = QIcon(":svg/icons/pause_16_filled.svg");
-    const QIcon icoStopWhite = QIcon(":svg/icons/stop_16_filled_white.svg");
-    const QIcon icoStopBlack = QIcon(":svg/icons/stop_16_filled.svg");
-    const QIcon icoLoopWhite = QIcon(":svg/icons/arrow_repeat_all_16_filled_white.svg");
-    const QIcon icoLoopBlack = QIcon(":svg/icons/arrow_repeat_all_16_filled.svg");
 
     const QStringList quantizeStrings = {"1/2", "1/4", "1/8", "1/16", "1/32", "1/64", "1/128"};
     const QList<int> quantizeValues = {2, 4, 8, 16, 32, 64, 128};
@@ -76,7 +69,5 @@ private:
     void updatePlaybackControlView();
     void updateLoopButtonView();
 };
-
-
 
 #endif // PLAYBACKVIEW_H
