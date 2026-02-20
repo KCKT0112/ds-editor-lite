@@ -19,7 +19,7 @@
 #include "UI/Controls/AccentButton.h"
 #include "UI/Dialogs/Base/Dialog.h"
 #include "UI/Views/Common/ScrollBarView.h"
-#include "Utils/MathUtils.h"
+#include "Utils/TimelineSnapUtils.h"
 
 #include <QFileDialog>
 #include <QMouseEvent>
@@ -37,6 +37,7 @@ TracksGraphicsView::TracksGraphicsView(TracksGraphicsScene *scene, const QWidget
     setPixelsPerQuarterNote(TracksEditorGlobal::pixelsPerQuarterNote);
     setDragBehavior(DragBehavior::RectSelect);
     setMinimumHeight(0);
+    m_quantize = appStatus->quantize;
 
     m_actionNewSingingClip = new QAction(tr("New singing clip"), this);
     connect(m_actionNewSingingClip, &QAction::triggered, this,
@@ -64,7 +65,7 @@ TracksGraphicsView::TracksGraphicsView(TracksGraphicsScene *scene, const QWidget
 }
 
 void TracksGraphicsView::setQuantize(const int quantize) {
-    m_quantize = quantize;
+    m_quantize = quantize > 0 ? quantize : 16;
 }
 
 QList<int> TracksGraphicsView::selectedClipsId() const {
@@ -170,11 +171,6 @@ void TracksGraphicsView::mouseMoveEvent(QMouseEvent *event) {
         m_tempQuantizeOff = false;
 
     const auto curPos = mapToScene(event->pos());
-    if (event->modifiers() == Qt::AltModifier)
-        m_tempQuantizeOff = true;
-    else
-        m_tempQuantizeOff = false;
-
     const auto dx = (curPos.x() - m_mouseDownPos.x()) / scaleX() /
                     TracksEditorGlobal::pixelsPerQuarterNote * 480;
 
@@ -182,15 +178,17 @@ void TracksGraphicsView::mouseMoveEvent(QMouseEvent *event) {
     int left;
     int clipLen;
     const int delta = qRound(dx);
-    const int quantize = m_tempQuantizeOff ? 1 : 1920 / m_quantize;
+    const int quantize = TimelineSnapUtils::quantizeStep(m_quantize, m_tempQuantizeOff);
     if (m_mouseMoveBehavior == Move) {
         m_movedBeforeMouseUp = true;
-        left = MathUtils::round(m_mouseDownStart + m_mouseDownClipStart + delta, quantize);
+        left = TimelineSnapUtils::snapNearest(m_mouseDownStart + m_mouseDownClipStart + delta,
+                                              quantize);
         start = left - m_mouseDownClipStart;
         m_currentEditingClip->setStart(start);
     } else if (m_mouseMoveBehavior == ResizeLeft) {
         m_movedBeforeMouseUp = true;
-        left = MathUtils::round(m_mouseDownStart + m_mouseDownClipStart + delta, quantize);
+        left = TimelineSnapUtils::snapNearest(m_mouseDownStart + m_mouseDownClipStart + delta,
+                                              quantize);
         start = m_mouseDownStart;
         const int clipStart = left - start;
         clipLen = m_mouseDownStart + m_mouseDownClipStart + m_mouseDownClipLen - left;
@@ -211,7 +209,7 @@ void TracksGraphicsView::mouseMoveEvent(QMouseEvent *event) {
         }
     } else if (m_mouseMoveBehavior == ResizeRight) {
         m_movedBeforeMouseUp = true;
-        const int right = MathUtils::round(
+        const int right = TimelineSnapUtils::snapNearest(
             m_mouseDownStart + m_mouseDownClipStart + m_mouseDownClipLen + delta, quantize);
         clipLen = right - (m_mouseDownStart + m_mouseDownClipStart);
         if (clipLen <= 0) {
@@ -268,7 +266,8 @@ void TracksGraphicsView::mouseDoubleClickEvent(QMouseEvent *event) {
                 clipController->centerAt(playbackController->position(), 60);
             }
         } else if (dynamic_cast<TrackEditorBackgroundView *>(item)) {
-            m_tick = MathUtils::roundDown(tick, 1920 / m_quantize);
+            m_tick = TimelineSnapUtils::snapDown(
+                tick, TimelineSnapUtils::quantizeStep(m_quantize));
             onNewSingingClip();
         }
     }
@@ -286,8 +285,8 @@ void TracksGraphicsView::contextMenuEvent(QContextMenuEvent *event) {
     if (const auto item = itemAt(event->pos())) {
         if (dynamic_cast<TrackEditorBackgroundView *>(item)) {
             m_trackIndex = trackIndex;
-            m_tick = tick;
-            m_snappedTick = MathUtils::roundDown(tick, 1920 / m_quantize);
+            m_tick = TimelineSnapUtils::snapDown(
+                tick, TimelineSnapUtils::quantizeStep(m_quantize));
             m_backgroundMenu->exec(event->globalPos());
         } else if (auto clip = dynamic_cast<AbstractClipView *>(item)) {
             qDebug() << "context menu on clip" << clip->id();

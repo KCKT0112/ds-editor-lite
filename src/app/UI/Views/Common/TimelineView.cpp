@@ -14,12 +14,28 @@
 #include "Model/AppStatus/AppStatus.h"
 #include "Model/AppModel/InferPiece.h"
 #include "Model/AppModel/Note.h"
-#include "Utils/MathUtils.h"
+#include "Utils/TimelineSnapUtils.h"
+
+namespace {
+
+QColor blendColor(const QColor &from, const QColor &to, double ratio) {
+    if (ratio < 0)
+        ratio = 0;
+    else if (ratio > 1)
+        ratio = 1;
+    return QColor(static_cast<int>(from.red() + (to.red() - from.red()) * ratio),
+                  static_cast<int>(from.green() + (to.green() - from.green()) * ratio),
+                  static_cast<int>(from.blue() + (to.blue() - from.blue()) * ratio));
+}
+
+} // namespace
 
 TimelineView::TimelineView(QWidget *parent) : QWidget(parent) {
     setAttribute(Qt::WA_StyledBackground);
     setObjectName("TimelineView");
     setMouseTracking(true);
+    setTimeSignature(appModel->timeSignature().numerator, appModel->timeSignature().denominator);
+    setQuantize(appStatus->quantize);
 
     connect(this, &TimelineView::setLastPositionTriggered, playbackController, [=](double tick) {
         playbackController->setLastPosition(tick);
@@ -171,12 +187,17 @@ void TimelineView::drawBeat(QPainter *painter, int tick, int bar, int beat) {
     painter->drawLine(QLineF(x, y1, x, y2));
 }
 
-void TimelineView::drawEighth(QPainter *painter, int tick) {
+void TimelineView::drawSubdivision(QPainter *painter, int tick, int level, int levelCount) {
+    const double ratio = levelCount > 1 ? static_cast<double>(level) / (levelCount - 1) : 0.0;
     QPen pen;
     auto x = tickToX(tick);
-    pen.setColor(QColor(57, 59, 61));
+    pen.setColor(blendColor(QColor(76, 79, 83), QColor(57, 59, 61), ratio));
     painter->setPen(pen);
-    auto y1 = rect().height() - 8;
+    constexpr int strongestLineHeight = 12;
+    constexpr int weakestLineHeight = 6;
+    const int lineHeight = strongestLineHeight -
+                           qRound((strongestLineHeight - weakestLineHeight) * ratio);
+    auto y1 = rect().height() - lineHeight;
     auto y2 = rect().height();
     painter->drawLine(QLineF(x, y1, x, y2));
 }
@@ -211,12 +232,14 @@ void TimelineView::mouseMoveEvent(QMouseEvent *event) {
     if (m_loopDragMode != None && m_canEditLoop) {
         auto loopSettings = appStatus->loopSettings.get();
         const bool noSnap = event->modifiers() & Qt::AltModifier;
-        const int quantizeInterval = noSnap ? 1 : 1920 / appStatus->quantize;
-        const int currentTick = MathUtils::round(static_cast<int>(xToTick(event->pos().x())), quantizeInterval);
+        const int quantizeInterval = TimelineSnapUtils::quantizeStep(appStatus->quantize, noSnap);
+        const int currentTick = TimelineSnapUtils::snapNearest(
+            static_cast<int>(xToTick(event->pos().x())), quantizeInterval);
         const int deltaTick = currentTick - m_loopDragStartPos;
 
         if (m_loopDragMode == DragStart) {
-            int newStart = qMax(0, MathUtils::round(m_loopDragStartTick + deltaTick, quantizeInterval));
+            int newStart = qMax(0, TimelineSnapUtils::snapNearest(m_loopDragStartTick + deltaTick,
+                                                                  quantizeInterval));
             int newLength = loopSettings.length - (newStart - loopSettings.start);
             if (newLength >= quantizeInterval) {
                 loopSettings.start = newStart;
@@ -225,12 +248,13 @@ void TimelineView::mouseMoveEvent(QMouseEvent *event) {
         } else if (m_loopDragMode == DragEnd) {
             // Calculate desired end position and snap it to grid
             int desiredEnd = loopSettings.start + loopSettings.length + deltaTick;
-            int snappedEnd = MathUtils::round(desiredEnd, quantizeInterval);
+            int snappedEnd = TimelineSnapUtils::snapNearest(desiredEnd, quantizeInterval);
             int newLength = qMax(quantizeInterval, snappedEnd - loopSettings.start);
             loopSettings.length = newLength;
             m_loopDragStartPos = currentTick;
         } else if (m_loopDragMode == DragBody) {
-            int newStart = qMax(0, MathUtils::round(m_loopDragStartTick + deltaTick, quantizeInterval));
+            int newStart = qMax(0, TimelineSnapUtils::snapNearest(m_loopDragStartTick + deltaTick,
+                                                                  quantizeInterval));
             loopSettings.start = newStart;
         }
         appStatus->loopSettings.set(loopSettings);
