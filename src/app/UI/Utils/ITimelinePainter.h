@@ -19,7 +19,7 @@ protected:
     [[nodiscard]] int pixelsPerQuarterNote() const;
     virtual void drawBar(QPainter *painter, int tick, int bar) = 0;
     virtual void drawBeat(QPainter *painter, int tick, int bar, int beat) = 0;
-    virtual void drawEighth(QPainter *painter, int tick) = 0;
+    virtual void drawSubdivision(QPainter *painter, int tick, int level, int levelCount) = 0;
     virtual ~ITimelinePainter() = default;
 
 private:

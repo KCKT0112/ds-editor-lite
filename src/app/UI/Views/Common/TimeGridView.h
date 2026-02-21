@@ -33,7 +33,7 @@ protected:
     void updateRectAndPos() override;
     void drawBar(QPainter *painter, int tick, int bar) override;
     void drawBeat(QPainter *painter, int tick, int bar, int beat) override;
-    void drawEighth(QPainter *painter, int tick) override;
+    void drawSubdivision(QPainter *painter, int tick, int level, int levelCount) override;
     QColor barLineColor() const;
     void setBarLineColor(const QColor &color);
     QColor beatLineColor() const;

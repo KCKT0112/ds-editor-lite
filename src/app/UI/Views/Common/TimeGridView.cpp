@@ -10,7 +10,23 @@
 #include <QPainter>
 #include <QPen>
 
+namespace {
+
+QColor blendColor(const QColor &from, const QColor &to, double ratio) {
+    if (ratio < 0)
+        ratio = 0;
+    else if (ratio > 1)
+        ratio = 1;
+    return QColor(static_cast<int>(from.red() + (to.red() - from.red()) * ratio),
+                  static_cast<int>(from.green() + (to.green() - from.green()) * ratio),
+                  static_cast<int>(from.blue() + (to.blue() - from.blue()) * ratio));
+}
+
+} // namespace
+
 TimeGridView::TimeGridView(QGraphicsItem *parent) : AbstractGraphicsRectItem(parent) {
+    setTimeSignature(appModel->timeSignature().numerator, appModel->timeSignature().denominator);
+    setQuantize(appStatus->quantize);
 
     connect(appModel, &AppModel::modelChanged, this, [this] {
         this->setTimeSignature(appModel->timeSignature().numerator,
@@ -86,10 +102,11 @@ void TimeGridView::drawBeat(QPainter *painter, int tick, int bar, int beat) {
     painter->drawLine(QLineF(x, 0, x, visibleRect().height()));
 }
 
-void TimeGridView::drawEighth(QPainter *painter, int tick) {
+void TimeGridView::drawSubdivision(QPainter *painter, int tick, int level, int levelCount) {
     QPen pen;
     auto x = sceneXToItemX(tickToSceneX(tick - m_offset));
-    pen.setColor(m_commonLineColor);
+    const double ratio = levelCount > 1 ? static_cast<double>(level) / (levelCount - 1) : 0.0;
+    pen.setColor(blendColor(m_beatLineColor, m_commonLineColor, ratio));
     painter->setPen(pen);
     painter->drawLine(QLineF(x, 0, x, visibleRect().height()));
 }

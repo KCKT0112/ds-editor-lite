@@ -45,7 +45,6 @@ private:
     QAction *m_actionAddAudioClip;
     int m_trackIndex = -1;
     int m_tick = 0;
-    int m_snappedTick = 0;
     int m_quantize = 16;
 
     MouseMoveBehavior m_mouseMoveBehavior = None;

@@ -30,6 +30,7 @@
 #include "Utils/Linq.h"
 #include "Utils/Log.h"
 #include "Utils/MathUtils.h"
+#include "Utils/TimelineSnapUtils.h"
 #include <climits>
 #include <cmath>
 
@@ -280,8 +281,10 @@ void PianoRollGraphicsView::mouseMoveEvent(QMouseEvent *event) {
 
     const auto scenePos = mapToScene(event->position().toPoint());
     const auto tick = static_cast<int>(sceneXToTick(scenePos.x()) + d->m_offset);
-    const auto quantizedTickLength = d->m_tempQuantizeOff ? 1 : 1920 / appStatus->quantize;
-    const auto snappedTick = MathUtils::roundDown(tick, quantizedTickLength);
+    const auto quantizedTickLength =
+        TimelineSnapUtils::quantizeStep(appStatus->quantize, d->m_tempQuantizeOff);
+    const auto snappedTick = TimelineSnapUtils::snapDown(tick, quantizedTickLength);
+    const auto snappedTickNearest = TimelineSnapUtils::snapNearest(tick, quantizedTickLength);
     const auto keyIndex = d->sceneYToKeyIndexInt(scenePos.y());
     const auto deltaX = static_cast<int>(sceneXToTick(scenePos.x() - d->m_mouseDownPos.x()));
 
@@ -289,7 +292,7 @@ void PianoRollGraphicsView::mouseMoveEvent(QMouseEvent *event) {
 
     // TODO: Optimize note moving and resizing
     if (d->m_mouseMoveBehavior == PianoRollGraphicsViewPrivate::Move) {
-        const auto startOffset = MathUtils::round(deltaX, quantizedTickLength);
+        const auto startOffset = TimelineSnapUtils::snapNearest(deltaX, quantizedTickLength);
         auto keyOffset = keyIndex - d->m_mouseDownKeyIndex;
         if (keyOffset > d->m_moveMaxDeltaKey)
             keyOffset = d->m_moveMaxDeltaKey;
@@ -309,8 +312,7 @@ void PianoRollGraphicsView::mouseMoveEvent(QMouseEvent *event) {
         d->resizeLeftSelectedNote(d->m_deltaTick);
         d->m_movedBeforeMouseUp = true;
     } else if (d->m_mouseMoveBehavior == PianoRollGraphicsViewPrivate::ResizeRight) {
-        const auto lengthOffset = MathUtils::round(deltaX, quantizedTickLength);
-        const auto right = d->m_mouseDownRStart + d->m_mouseDownLength + lengthOffset;
+        const auto right = snappedTickNearest - d->m_offset;
         const auto length = right - d->m_mouseDownRStart;
         auto deltaLength = length - d->m_mouseDownLength;
         if (length < quantizedTickLength)
@@ -383,7 +385,7 @@ void PianoRollGraphicsView::mouseDoubleClickEvent(QMouseEvent *event) {
 
         // Calculate note length based on current quantize setting
         // quantize = 16 means 16th note, quantize = 8 means 8th note, etc.
-        const int noteLength = 1920 / appStatus->quantize;
+        const int noteLength = TimelineSnapUtils::quantizeToTicks(appStatus->quantize);
 
         // Set up mouse state for drawing
         d->m_mouseDown = true;
@@ -863,13 +865,15 @@ void PianoRollGraphicsViewPrivate::PrepareForDrawingNote(const int tick, const i
     }
 
     appStatus->currentEditObject = AppStatus::EditObjectType::Note;
-    const auto snappedTick = MathUtils::roundDown(tick, 1920 / appStatus->quantize);
+    const auto quantizedTickLength = TimelineSnapUtils::quantizeToTicks(appStatus->quantize);
+    const auto snappedTick = TimelineSnapUtils::snapDown(tick, quantizedTickLength);
     Log::d(CLASS_NAME, "Draw note at: " + qStrNum(snappedTick));
     m_currentDrawingNote->fontPixelSize = q->m_noteFontPixelSize;
     m_currentDrawingNote->setLyric(appOptions->general()->defaultLyric);
     m_currentDrawingNote->setRStart(snappedTick - m_offset);
     // If initialLength is specified (>= 0), use it; otherwise use default quantized length
-    const int length = initialLength >= 0 ? initialLength : (1920 / appStatus->quantize);
+    const int length =
+        initialLength >= 0 ? initialLength : TimelineSnapUtils::quantizeToTicks(appStatus->quantize);
     m_currentDrawingNote->setLength(length);
     m_currentDrawingNote->setKeyIndex(keyIndex);
     q->scene()->addCommonItem(m_currentDrawingNote);
@@ -1174,8 +1178,8 @@ void PianoRollGraphicsViewPrivate::splitNoteAtPosition(NoteView *noteView, int t
     if (!note)
         return;
 
-    const auto quantizedTickLength = 1920 / appStatus->quantize;
-    const auto snappedTick = MathUtils::roundDown(tick, quantizedTickLength);
+    const auto quantizedTickLength = TimelineSnapUtils::quantizeToTicks(appStatus->quantize);
+    const auto snappedTick = TimelineSnapUtils::snapNearest(tick, quantizedTickLength);
     const auto splitPos = snappedTick - m_offset;
     const auto noteLocalStart = note->localStart();
     const auto noteLocalEnd = noteLocalStart + note->length();
@@ -1227,8 +1231,8 @@ void PianoRollGraphicsViewPrivate::updateSplitLineIndicator(NoteView *noteView, 
         return;
     }
 
-    const auto quantizedTickLength = 1920 / appStatus->quantize;
-    const auto snappedTick = MathUtils::roundDown(tick, quantizedTickLength);
+    const auto quantizedTickLength = TimelineSnapUtils::quantizeToTicks(appStatus->quantize);
+    const auto snappedTick = TimelineSnapUtils::snapNearest(tick, quantizedTickLength);
     const auto splitPos = snappedTick - m_offset;
     const auto noteLocalStart = noteView->rStart();
     const auto noteLocalEnd = noteLocalStart + noteView->length();
@@ -1301,19 +1305,5 @@ void PianoRollGraphicsViewPrivate::splitNoteAtMousePosition(NoteView *noteView,
     const auto scenePos = q->mapToScene(mousePos);
     const auto tick = static_cast<int>(q->sceneXToTick(scenePos.x()) + m_offset);
 
-    const auto quantizedTickLength = 1920 / appStatus->quantize;
-
-    // Find the quantize points before and after the mouse position
-    const auto prevQuantizeTick = MathUtils::roundDown(tick, quantizedTickLength);
-    const auto nextQuantizeTick = prevQuantizeTick + quantizedTickLength;
-
-    // Determine which quantize point is closer to the mouse position
-    const auto distToPrev = qAbs(tick - prevQuantizeTick);
-    const auto distToNext = qAbs(tick - nextQuantizeTick);
-
-    // Use the closer quantize point, or the next one if equidistant
-    const auto splitTick = (distToPrev <= distToNext) ? prevQuantizeTick : nextQuantizeTick;
-
-    // Call the split function with the determined tick
-    splitNoteAtPosition(noteView, splitTick);
+    splitNoteAtPosition(noteView, tick);
 }
