@@ -5,6 +5,7 @@
 #ifndef ACTIONBUTTONSVIEW_H
 #define ACTIONBUTTONSVIEW_H
 
+#include <QSize>
 #include <QWidget>
 
 class QPushButton;
@@ -28,16 +29,11 @@ public slots:
 
 private:
     int m_contentHeight = 30;
+    QSize m_iconSize = QSize(16, 16);
 
     QPushButton *m_btnSave;
     QPushButton *m_btnUndo;
     QPushButton *m_btnRedo;
-
-    const QIcon icoSaveWhite = QIcon(":svg/icons/save_16_filled_white.svg");
-    const QIcon icoUndoWhite = QIcon(":svg/icons/arrow_undo_16_filled_white.svg");
-    const QIcon icoRedoWhite = QIcon(":svg/icons/arrow_redo_16_filled_white.svg");
 };
-
-
 
 #endif // ACTIONBUTTONSVIEW_H

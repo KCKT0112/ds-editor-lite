@@ -2,9 +2,9 @@
 // Created by fluty on 2024/2/4.
 //
 
-
 #include "PlaybackView.h"
 
+#include "MainTitleBarIconPalette.h"
 #include "TitleControlGroup.h"
 #include "Controller/AppController.h"
 #include "Controller/PlaybackController.h"
@@ -13,11 +13,34 @@
 #include "UI/Controls/ComboBox.h"
 #include "UI/Controls/EditLabel.h"
 #include "UI/Controls/LineEdit.h"
+#include "UI/Utils/IconUtils.h"
 #include "Utils/FontManager.h"
 
+#include <QColor>
 #include <QHBoxLayout>
+#include <QIcon>
 #include <QLabel>
 #include <QPushButton>
+
+namespace {
+    QColor playAccentColor() {
+        return QColor(155, 186, 255, 255);
+    }
+
+    QColor pauseAccentColor() {
+        return QColor(255, 205, 155, 255);
+    }
+
+    QIcon buildActionIcon(const QString &svgPath, const QSize &iconSize) {
+        return IconUtils::createTintedSvgIcon(svgPath, iconSize,
+                                              MainTitleBarIconPalette::actionPalette());
+    }
+
+    QIcon buildToggleIcon(const QString &svgPath, const QSize &iconSize, const QColor &checkedColor) {
+        return IconUtils::createTintedSvgIcon(svgPath, iconSize,
+                                              MainTitleBarIconPalette::toggledPalette(checkedColor));
+    }
+}
 
 PlaybackView::PlaybackView(QWidget *parent) : QWidget(parent) {
     setAttribute(Qt::WA_StyledBackground);
@@ -39,11 +62,13 @@ PlaybackView::PlaybackView(QWidget *parent) : QWidget(parent) {
 
     m_btnStop = new QPushButton;
     m_btnStop->setObjectName("btnStop");
-    m_btnStop->setIcon(icoStopWhite);
+    m_btnStop->setIconSize(m_iconSize);
+    m_btnStop->setIcon(buildActionIcon(":svg/icons/stop_16_filled.svg", m_iconSize));
 
     m_btnPlay = new QPushButton;
     m_btnPlay->setObjectName("btnPlay");
-    m_btnPlay->setIcon(icoPlayWhite);
+    m_btnPlay->setIconSize(m_iconSize);
+    m_btnPlay->setIcon(buildToggleIcon(":svg/icons/play_16_filled.svg", m_iconSize, playAccentColor()));
     // m_btnPlay->setText("Play");
     m_btnPlay->setCheckable(true);
 
@@ -59,7 +84,9 @@ PlaybackView::PlaybackView(QWidget *parent) : QWidget(parent) {
 
     m_btnLoop = new QPushButton;
     m_btnLoop->setObjectName("btnLoop");
-    m_btnLoop->setIcon(icoLoopWhite);
+    m_btnLoop->setIconSize(m_iconSize);
+    m_btnLoop->setIcon(buildToggleIcon(":svg/icons/arrow_repeat_all_16_filled.svg", m_iconSize,
+                                       playAccentColor()));
     m_btnLoop->setCheckable(true);
     m_btnLoop->setToolTip(tr("Loop"));
     m_btnLoop->setShortcut(QKeySequence(Qt::ALT | Qt::Key_L));
@@ -84,7 +111,9 @@ PlaybackView::PlaybackView(QWidget *parent) : QWidget(parent) {
 
     m_btnPause = new QPushButton;
     m_btnPause->setObjectName("btnPause");
-    m_btnPause->setIcon(icoPauseWhite);
+    m_btnPause->setIconSize(m_iconSize);
+    m_btnPause->setIcon(buildToggleIcon(":svg/icons/pause_16_filled.svg", m_iconSize,
+                                        pauseAccentColor()));
     // m_btnPause->setText("Pause");
     m_btnPause->setCheckable(true);
 
@@ -289,27 +318,20 @@ void PlaybackView::updateTimeView() {
 void PlaybackView::updatePlaybackControlView() {
     if (m_status == Playing) {
         m_btnPlay->setChecked(true);
-        m_btnPlay->setIcon(icoPlayBlack);
 
         m_btnPause->setChecked(false);
-        m_btnPause->setIcon(icoPauseWhite);
     } else if (m_status == Paused) {
         m_btnPlay->setChecked(false);
-        m_btnPlay->setIcon(icoPlayWhite);
 
         m_btnPause->setChecked(true);
-        m_btnPause->setIcon(icoPauseBlack);
     } else {
         m_btnPlay->setChecked(false);
-        m_btnPlay->setIcon(icoPlayWhite);
 
         m_btnPause->setChecked(false);
-        m_btnPause->setIcon(icoPauseWhite);
     }
 }
 
 void PlaybackView::updateLoopButtonView() {
     const bool enabled = appStatus->loopSettings.get().enabled;
     m_btnLoop->setChecked(enabled);
-    m_btnLoop->setIcon(enabled ? icoLoopBlack : icoLoopWhite);
 }
